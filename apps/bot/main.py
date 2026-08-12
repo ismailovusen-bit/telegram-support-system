@@ -1,47 +1,46 @@
 import asyncio
-import logging
-import httpx
+import os
+from threading import Thread
 from aiogram import Bot, Dispatcher, types
+from flask import Flask
 
-# Вставь сюда свежий токен из BotFather
-RAW_TOKEN = "8645806834:AAFifGe729wTs2ZIUNp9vIXOvQCCqiqD1do"
-API_URL = "http://127.0.0.1:8000"
+# Настройки токена (берется из переменных окружения на Render)
+TOKEN = os.getenv("BOT_TOKEN")
 
+bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-@dp.message()
-async def handle_user_message(message: types.Message):
-    async with httpx.AsyncClient() as client:
-        await client.post(f"{API_URL}/messages", json={
-            "chat_id": message.from_user.id,
-            "sender_type": "user",
-            "text": message.text
-        })
+# 1. Создаем мини-сайт для Render, чтобы он не отключал сервис
+app = Flask("")
 
-async def poll_operator_answers(bot: Bot):
-    while True:
-        try:
-            async with httpx.AsyncClient() as client:
-                res = await client.get(f"{API_URL}/bot/pop-answers")
-                if res.status_code == 200:
-                    for ans in res.json():
-                        await bot.send_message(
-                            chat_id=ans["chat_id"], 
-                            text=f"👨‍💻 Ответ оператора:\n{ans['text']}"
-                        )
-        except Exception:
-            pass
-        await asyncio.sleep(2)
+
+@app.route("/")
+def home():
+  return "Bot is alive and running!"
+
+
+def run_web():
+  port = int(
+      os.environ.get("PORT", 10000)
+  )  // Render автоматически передает порт в эту переменную
+  app.run(host="0.0.0.0", port=port)
+
+
+# Обработчик сообщений в боте
+@dp.message()
+async def echo_message(message: types.Message):
+  # Здесь твоя логика ответа клиентам или пересылки
+  await message.answer("Сообщение получено оператором.")
+
 
 async def main():
-    logging.basicConfig(level=logging.INFO)
-    
-    # Очистка токена от пробелов и кавычек
-    clean_token = RAW_TOKEN.strip().strip("'").strip('"')
-    bot = Bot(token=clean_token)
-    
-    asyncio.create_task(poll_operator_answers(bot))
-    await dp.start_polling(bot)
+  # Запускаем веб-сервер в фоновом потоке
+  Thread(target=run_web).daemon = True
+  Thread(target=run_web).start()
+
+  # Запускаем бота
+  await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
+  asyncio.run(main())
