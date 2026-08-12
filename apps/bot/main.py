@@ -21,8 +21,8 @@ def home():
 
 def run_web():
   port = int(
-      os.environ.get("PORT", 10000)
-  )  // Render автоматически передает порт в эту переменную
+    os.environ.get("PORT", 10000)
+)  # Render автоматически передает порт в эту переменную
   app.run(host="0.0.0.0", port=port)
 
 
