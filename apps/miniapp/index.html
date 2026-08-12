@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Панель Оператора</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { display: flex; height: 100vh; background: #0f172a; color: white; }
+        #sidebar { width: 320px; background: #1e293b; border-right: 1px solid #334155; padding: 15px; }
+        #chat-area { flex: 1; display: flex; flex-direction: column; padding: 20px; background: #0f172a; }
+        .chat-card { padding: 12px; background: #334155; margin-bottom: 8px; border-radius: 8px; cursor: pointer; }
+        .chat-card.active { background: #2563eb; }
+        #messages { flex: 1; background: #1e293b; border-radius: 8px; padding: 15px; overflow-y: auto; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .msg { max-width: 70%; padding: 10px 14px; border-radius: 8px; line-height: 1.4; }
+        .msg.user { background: #334155; align-self: flex-start; }
+        .msg.operator { background: #2563eb; align-self: flex-end; }
+        .input-box { display: flex; gap: 10px; }
+        input { flex: 1; padding: 12px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: white; outline: none; }
+        button { padding: 12px 24px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h3 style="margin-bottom: 15px;">Входящие чаты</h3>
+        <div id="chat-list">Загрузка...</div>
+    </div>
+    <div id="chat-area">
+        <h3 id="chat-header" style="margin-bottom: 15px;">Выберите чат из списка</h3>
+        <div id="messages"></div>
+        <div class="input-box">
+            <input type="text" id="msg-input" placeholder="Напишите ответ клиенту в Telegram...">
+            <button onclick="sendReply()">Отправить</button>
+        </div>
+    </div>
+
+    <script>
+        const API = "http://127.0.0.1:8000";
+        let currentChatId = null;
+
+        async function fetchChats() {
+            try {
+                const res = await fetch(`${API}/chats`);
+                const chats = await res.json();
+                const container = document.getElementById('chat-list');
+                container.innerHTML = '';
+                
+                chats.forEach(c => {
+                    const div = document.createElement('div');
+                    div.className = `chat-card ${currentChatId === c.chat_id ? 'active' : ''}`;
+                    div.innerText = `Чат #${c.chat_id}\n${c.last_msg}`;
+                    div.onclick = () => selectChat(c.chat_id);
+                    container.appendChild(div);
+                });
+            } catch (e) {}
+        }
+
+        async function selectChat(id) {
+            currentChatId = id;
+            document.getElementById('chat-header').innerText = `Диалог с пользователем #${id}`;
+            loadMessages();
+        }
+
+        async function loadMessages() {
+            if (!currentChatId) return;
+            const res = await fetch(`${API}/chats/${currentChatId}/messages`);
+            const msgs = await res.json();
+            const box = document.getElementById('messages');
+            box.innerHTML = '';
+            
+            msgs.forEach(m => {
+                const div = document.createElement('div');
+                div.className = `msg ${m.sender_type}`;
+                div.innerText = m.text;
+                box.appendChild(div);
+            });
+        }
+
+        async function sendReply() {
+            const input = document.getElementById('msg-input');
+            if (!input.value || !currentChatId) return;
+
+            await fetch(`${API}/messages`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    chat_id: currentChatId,
+                    sender_type: 'operator',
+                    text: input.value
+                })
+            });
+
+            input.value = '';
+            loadMessages();
+        }
+
+        setInterval(() => { fetchChats(); loadMessages(); }, 2000);
+        fetchChats();
+    </script>
+</body>
+</html>

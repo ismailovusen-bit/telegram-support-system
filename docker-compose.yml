@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: support_db
+    environment:
+      POSTGRES_USER: support_user
+      POSTGRES_PASSWORD: support_pass
+      POSTGRES_DB: support_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U support_user -d support_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./apps/api
+    container_name: support_api
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  bot:
+    build:
+      context: ./apps/bot
+    container_name: support_bot
+    env_file:
+      - .env
+    depends_on:
+      - api
+
+  miniapp:
+    build:
+      context: ./apps/miniapp
+    container_name: support_miniapp
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
